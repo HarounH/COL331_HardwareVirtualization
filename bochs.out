@@ -1,0 +1,29 @@
+6828 decimal is 15254 octal!
+
+e820 MEMORY MAP
+size: 20, address: 0x0000000000000000, length: 0x000000000009f000, type: 1
+size: 20, address: 0x000000000009f000, length: 0x0000000000001000, type: 2
+size: 20, address: 0x00000000000e8000, length: 0x0000000000018000, type: 2
+size: 20, address: 0x0000000000100000, length: 0x0000000007ef0000, type: 1
+size: 20, address: 0x0000000007ff0000, length: 0x0000000000010000, type: 3
+size: 20, address: 0x00000000fffc0000, length: 0x0000000000040000, type: 2
+
+Physical memory: 128M available, base = 636K, extended = 130048K, npages = 32768
+kernel panic on CPU 0 at kern/pmap.c:230: x64_vm_init: this function is not finished
+
+Welcome to the JOS kernel monitor!
+Type 'help' for a list of commands.
+K> backtrace
+backtrace:
+  rbp 0000008004228de0  rip 000000800420131f
+	     kern/monitor.c:74: mon_backtrace+0000000000000035  args:3  0000000000000080  0000000000000080  0000000000000000
+  rbp 0000008004228e90  rip 0000008004201659
+	     kern/monitor.c:142: runcmd+00000000000001d3  args:2  0000000000000001  000000000000000a
+  rbp 0000008004228ec0  rip 000000800420172e
+	     kern/monitor.c:162: monitor+0000000000000097  args:1  0000000000000080
+  rbp 0000008004228fc0  rip 00000080042005f2
+	     kern/init.c:205: _panic+0000000000000135  args:3  0000000000000000  0000000000000000  0000000000000000
+  rbp 0000008004228fd0  rip 000000800420205b
+  rbp 0000008004228ff0  rip 000000800420012a
+	     kern/init.c:70: i386_init+00000000000000ad  args:0
+K> 

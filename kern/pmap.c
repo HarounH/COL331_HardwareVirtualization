@@ -238,7 +238,7 @@ x64_vm_init(void)
     //panic("i386_vm_init: This function is not finished\n");
     //////////////////////////////////////////////////////////////////////
     // create initial page directory.
-    panic("x64_vm_init: this function is not finished\n");
+    // panic("x64_vm_init: this function is not finished\n");
     pml4e = boot_alloc(PGSIZE);
     memset(pml4e, 0, PGSIZE);
     boot_pml4e = pml4e;
@@ -251,10 +251,11 @@ x64_vm_init(void)
     // array.  'npage' is the number of physical pages in memory.
     // User-level programs will get read-only access to the array as well.
     // Your code goes here:
-
+    pages = (struct Page*) boot_alloc(npages*sizeof(struct Page)); // Same olf.
     //////////////////////////////////////////////////////////////////////
     // Make 'envs' point to an array of size 'NENV' of 'struct Env'.
     // LAB 3: Your code here.
+    envs = (struct Env*) boot_alloc(NENV*sizeof(struct Env));
     //////////////////////////////////////////////////////////////////////
     // Now that we've allocated the initial kernel data structures, we set
     // up the list of free physical pages. Once we've done so, all further
@@ -271,7 +272,7 @@ x64_vm_init(void)
     //      (ie. perm = PTE_U | PTE_P)
     //    - pages itself -- kernel RW, user NONE
     // Your code goes here:
-
+    boot_map_region(boot_pml4e, UPAGES, npages*sizeof(struct Page), PADDR(pages), PTE_U|PTE_P);
     //////////////////////////////////////////////////////////////////////
     // Map the 'envs' array read-only by the user at linear address UENVS
     // (ie. perm = PTE_U | PTE_P).
@@ -279,7 +280,7 @@ x64_vm_init(void)
     //    - the new image at UENVS  -- kernel R, user R
     //    - envs itself -- kernel RW, user NONE
     // LAB 3: Your code here.
-
+    boot_map_region(boot_pml4e, UENVS, NENV*sizeof(struct Env), PADDR(envs), PTE_U|PTE_P);
     //////////////////////////////////////////////////////////////////////
     // Use the physical memory that 'bootstack' refers to as the kernel
     // stack.  The kernel stack grows down from virtual address KSTACKTOP.
@@ -291,7 +292,7 @@ x64_vm_init(void)
     //       overwrite memory.  Known as a "guard page".
     //     Permissions: kernel RW, user NONE
     // Your code goes here:
-
+    boot_map_region(boot_pml4e, KSTACKTOP - KSTKSIZE, PADDR(bootstack), PTE_P|PTE_W);
     //////////////////////////////////////////////////////////////////////
     // Map all of physical memory at KERNBASE. We have detected the number
     // of physical pages to be npages.
@@ -299,6 +300,7 @@ x64_vm_init(void)
     //      the PA range [0, npages*PGSIZE - KERNBASE)
     // Permissions: kernel RW, user NONE
     // Your code goes here: 
+    boot_map_region(boot_pml4e, KERNBASE, npages*PGSIZE, 0, PTE_P|PTE_W); // This is a little wierd. No?
     // Check that the initial page directory has been set up correctly.
     // Initialize the SMP-related parts of the memory map
     mem_init_mp();
@@ -384,14 +386,24 @@ page_init(void)
     // NB: Remember to mark the memory used for initial boot page table i.e (va>=BOOT_PAGE_TABLE_START && va < BOOT_PAGE_TABLE_END) as in-use (not free)
     size_t i;
     struct Page* last = NULL;
+    void* ba0 = boot_alloc(0);
+    //NOTE: Barun, watchout for funky behaviour here. End of list ka pp_link is itself.
     for (i = 0; i < npages; i++) {
         pages[i].pp_ref = 0;
         pages[i].pp_link = NULL;
-        if(last)
-            last->pp_link = &pages[i];
-        else
-            page_free_list = &pages[i];
-        last = &pages[i];
+        if((i>1) && (last!=NULL)) {
+            last->pp_link=&pages[i];
+        } else {
+            page_free_list=&pages[i];
+        }
+
+        // Hole
+        if((page2pa(&pages[i]) >= IOPHYSMEM) && (page2pa(&pages[i])<ba0)) {
+            pages[i].pp_ref = 1;
+            pages[i].pp_link = NULL;
+        } else {
+            last = &pages[i];
+        }
     }
 }
 
@@ -406,11 +418,24 @@ page_init(void)
 // Returns NULL if out of free memory.
 //
 // Hint: use page2kva and memset
-    struct Page *
+struct Page *
 page_alloc(int alloc_flags)
 {
     // Fill this function in
-    return 0;
+    struct Page* ret = page_free_list;
+    if(ret!=NULL) {
+        if(ret->pp_link==ret) { // Bloody "funky" behavior
+            page_free_list = NULL;
+        } else {
+            page_free_list = ret->pp_link;
+        }
+        ret->pp_link = NULL;
+        if(alloc_flags & ALLOC_ZERO) {
+            memset(page2kva(ret), 0, PGSIZE);
+        }
+        return ret;
+    }
+    return NULL; // Out of free memory.
 }
 
 //
@@ -431,6 +456,24 @@ page_initpp(struct Page *pp)
 page_free(struct Page *pp)
 {
     // Fill this function in
+    if(pp!=NULL) {
+        if(pp->pp_ref !=0 || pp->pp_link != NULL) {
+            // silently succeed.
+            cprintf("[kern] page_free got weird pp\n");
+            return;
+        }
+        if(page_free_list!=NULL) { // Stop screwing me with your "funky" behaviour hrun
+            pp->pp_link = page_free_list;
+            page_free_list = pp;
+        } else {
+            pp->pp_link = pp;
+            page_free_list = pp;
+        }
+
+    } else {
+        // Silently succeed.
+        cprintf("[kern] You told me to page_free(NULL) ... why, i wonder.\n");
+    }
 }
 
 //
@@ -469,9 +512,34 @@ page_decref(struct Page* pp)
 // table, page directory,page directory pointer and pml4 entries.
 //
 
-    pte_t *
+pte_t *
 pml4e_walk(pml4e_t *pml4e, const void *va, int create)
 {
+    // Do i seriously need to write pgdir_walk 4 times?
+    if(pml4e != NULL) {
+        pml4e_t *pml4e = &pml4e[PML4(va)];
+        if( *pml4e & PTE_P ) { // An entry is present!
+            
+        } else {
+            if(create == 0) {
+                // Dont create.
+                return NULL;
+            }
+            struct Page* pdpe_pp = page_alloc(1); // Sure, make it zero. Why not?
+            if( pdpe_pp == NULL ) {
+                return NULL;
+            }
+            // ASSERT: Created a new pdpe_pp. 
+            pp->pp_ref++;
+            *pml4e = (pml4e_t)page2pa(pp) | PTE_P | PTE_W | PTE_U;
+
+            // Now, walk on the lower level man.
+            pte_t *pte = pdpe_walk((pdpe_t*)page2pa(pp), ) // TODO: Important, check if I walk physical address or wut.
+
+        }
+    } else {
+        cprintf("[kern] Why you make me walk NULL?\n");
+    }
     return NULL;
 }
 

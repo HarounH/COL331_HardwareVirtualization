@@ -157,7 +157,7 @@ i386_detect_memory(void)
 // --------------------------------------------------------------
 
 static void mem_init_mp(void);
-static void boot_map_segment(pml4e_t *pml4e, uintptr_t va, size_t size, physaddr_t pa, int perm);
+static void boot_map_region(pml4e_t *pml4e, uintptr_t va, size_t size, physaddr_t pa, int perm);
 static void check_page_free_list(bool only_low_memory);
 static void check_page_alloc(void);
 static void check_boot_pml4e(pml4e_t *pml4e);
@@ -260,7 +260,7 @@ x64_vm_init(void)
     // Now that we've allocated the initial kernel data structures, we set
     // up the list of free physical pages. Once we've done so, all further
     // memory management will go through the page_* functions. In
-    // particular, we can now map memory using boot_map_segment or page_insert
+    // particular, we can now map memory using boot_map_region or page_insert
     page_init();
 
     //////////////////////////////////////////////////////////////////////
@@ -292,7 +292,7 @@ x64_vm_init(void)
     //       overwrite memory.  Known as a "guard page".
     //     Permissions: kernel RW, user NONE
     // Your code goes here:
-    boot_map_region(boot_pml4e, KSTACKTOP - KSTKSIZE, PADDR(bootstack), PTE_P|PTE_W);
+    boot_map_region(boot_pml4e, KSTACKTOP - KSTKSIZE, KSTKSIZE, PADDR(bootstack), PTE_P|PTE_W);
     //////////////////////////////////////////////////////////////////////
     // Map all of physical memory at KERNBASE. We have detected the number
     // of physical pages to be npages.
@@ -398,7 +398,7 @@ page_init(void)
         }
 
         // Hole
-        if((page2pa(&pages[i]) >= IOPHYSMEM) && (page2pa(&pages[i])<ba0)) {
+        if((page2pa(&pages[i]) >= IOPHYSMEM) && (page2pa(&pages[i])<(uint64_t)ba0)) {
             pages[i].pp_ref = 1;
             pages[i].pp_link = NULL;
         } else {
@@ -517,25 +517,24 @@ pml4e_walk(pml4e_t *pml4e, const void *va, int create)
 {
     // Do i seriously need to write pgdir_walk 4 times?
     if(pml4e != NULL) {
-        pml4e_t *pml4e = &pml4e[PML4(va)];
-        if( *pml4e & PTE_P ) { // An entry is present!
-            
+        pml4e_t *mypml4e = &pml4e[PML4(va)];
+        if( *mypml4e & PTE_P ) { // An entry is present!
+            return pdpe_walk( (pdpe_t*)KADDR((PTE_ADDR(*mypml4e))), va, create); //TODO
         } else {
             if(create == 0) {
                 // Dont create.
                 return NULL;
             }
-            struct Page* pdpe_pp = page_alloc(1); // Sure, make it zero. Why not?
-            if( pdpe_pp == NULL ) {
+            struct Page* pp = page_alloc(ALLOC_ZERO); // Sure, make it zero. Why not?
+            if( pp == NULL ) {
                 return NULL;
             }
-            // ASSERT: Created a new pdpe_pp. 
+            // ASSERT: Created a new pp. 
             pp->pp_ref++;
-            *pml4e = (pml4e_t)page2pa(pp) | PTE_P | PTE_W | PTE_U;
+            *mypml4e = (pml4e_t)page2pa(pp) | PTE_P | PTE_W | PTE_U;
 
             // Now, walk on the lower level man.
-            pte_t *pte = pdpe_walk((pdpe_t*)page2pa(pp), ) // TODO: Important, check if I walk physical address or wut.
-
+            return pdpe_walk((pdpe_t*)page2kva(pp), va, create); // TODO: Important, check if I walk physical address or wut.
         }
     } else {
         cprintf("[kern] Why you make me walk NULL?\n");
@@ -550,7 +549,18 @@ pml4e_walk(pml4e_t *pml4e, const void *va, int create)
 // Hints are the same as in pml4e_walk
 pte_t *
 pdpe_walk(pdpe_t *pdpe,const void *va,int create){
-
+    if(pdpe != NULL) {
+        pdpe_t* mypdpe = &pdpe[PDPE(va)];
+        if( (*mypdpe & PTE_P) == 0) {
+            if(create==0) {
+                return NULL;
+            }
+            struct Page* pp = page_alloc(ALLOC_ZERO);
+            pp->pp_ref++;
+            *mypdpe = page2pa(pp) | PTE_P | PTE_W | PTE_U;
+        }
+        return pgdir_walk( (pde_t*)KADDR(PTE_ADDR(*mypdpe)), va, create);
+    }
     return NULL;
 }
 // Given 'pgdir', a pointer to a page directory, pgdir_walk returns
@@ -558,10 +568,22 @@ pdpe_walk(pdpe_t *pdpe,const void *va,int create){
 // The programming logic and the hints are the same as pml4e_walk
 // and pdpe_walk.
 
-    pte_t *
+pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
     // Fill this function in
+    if( pgdir!= NULL) {
+        pde_t *mypde = &pgdir[PDX(va)];
+        if( (*mypde & PTE_P) == 0) {
+            if(create == 0) {
+                return NULL;
+            }
+            struct Page* pp = page_alloc(ALLOC_ZERO);
+            pp->pp_ref++;
+            *mypde = page2pa(pp) | PTE_P | PTE_W | PTE_U;
+        }
+        return &(((pte_t*)KADDR(PTE_ADDR(*mypde)))[PTX(va)]);
+    }
     return NULL;
 }
 
@@ -576,9 +598,14 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 //
 // Hint: the TA solution uses pml4e_walk
     static void
-boot_map_segment(pml4e_t *pml4e, uintptr_t la, size_t size, physaddr_t pa, int perm)
+boot_map_region(pml4e_t *pml4e, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
     // Fill this function in
+    size_t n;
+    for(n=0; n<size; n+=PGSIZE) {
+        pte_t* pte = pml4e_walk(pml4e, (void*)(va+n), 1);
+        *pte = PTE_ADDR(pa+n) | perm | PTE_P;
+    }
 }
 
 //
@@ -610,6 +637,19 @@ boot_map_segment(pml4e_t *pml4e, uintptr_t la, size_t size, physaddr_t pa, int p
 page_insert(pml4e_t *pml4e, struct Page *pp, void *va, int perm)
 {
     // Fill this function in
+    pte_t* pte = pml4e_walk(pml4e, va, 1);
+    if(pte == NULL) {
+        return -E_NO_MEM;
+    }
+    // ASSERT: We have pte.
+    if(*pte != 0) {
+        // Something is mapped here.
+        page_remove(pml4e, va);
+        tlb_invalidate(pml4e, va);
+        // If it was the same page, you'll remove the page and add it again. No issues really.
+    }
+    *pte = page2pa(pp) | perm | PTE_P;
+    pp->pp_ref++;
     return 0;
 }
 
@@ -624,10 +664,17 @@ page_insert(pml4e_t *pml4e, struct Page *pp, void *va, int perm)
 //
 // Hint: the TA solution uses pml4e_walk and pa2page.
 //
-    struct Page *
+struct Page *
 page_lookup(pml4e_t *pml4e, void *va, pte_t **pte_store)
 {
     // Fill this function in
+    pte_t* pte = pml4e_walk(pml4e, va, 0);
+    if( pte ) {
+        if(pte_store) {
+            *pte_store = pte;
+        }
+        return pa2page(PTE_ADDR(*pte));
+    }
     return NULL;
 }
 
@@ -650,6 +697,12 @@ page_lookup(pml4e_t *pml4e, void *va, pte_t **pte_store)
 page_remove(pml4e_t *pml4e, void *va)
 {
     // Fill this function in
+    pte_t *pte = pml4e_walk(pml4e, va, 0);
+    struct Page *pp=page_lookup(pml4e, va, &pte);
+    if(pp!=NULL) {
+        page_decref(pp);
+        tlb_invalidate(pml4e, va);
+    }
 }
 
 //

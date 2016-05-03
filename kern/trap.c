@@ -73,6 +73,58 @@ trap_init(void)
 {
 	extern struct Segdesc gdt[];
 
+	extern void HANDLE_DIVIDE();	//0
+	SETGATE(idt[T_DIVIDE],0,GD_KT,HANDLE_DIVIDE,0);
+	extern void HANDLE_DEBUG();		//1
+	SETGATE(idt[T_DEBUG],0,GD_KT,HANDLE_DEBUG,0);
+	extern void HANDLE_NMI();		//2
+	SETGATE(idt[T_NMI],0,GD_KT,HANDLE_NMI,0);
+	extern void HANDLE_BRKPT();		//3
+	SETGATE(idt[T_BRKPT],0,GD_KT,HANDLE_BRKPT,3);
+	extern void HANDLE_OFLOW();		//4
+	SETGATE(idt[T_OFLOW],0,GD_KT,HANDLE_OFLOW,0);
+	extern void HANDLE_BOUND();		//5
+	SETGATE(idt[T_BOUND],0,GD_KT,HANDLE_BOUND,0);
+	extern void HANDLE_ILLOP();		//6
+	SETGATE(idt[T_ILLOP],0,GD_KT,HANDLE_ILLOP,0);
+	extern void HANDLE_DEVICE();	//7
+	SETGATE(idt[T_DEVICE],0,GD_KT,HANDLE_DEVICE,0);
+	extern void HANDLE_DBFLT();		//8
+	SETGATE(idt[T_DBLFLT],0,GD_KT,HANDLE_DBFLT,0);
+	extern void HANDLE_TSS();		//10
+	SETGATE(idt[T_TSS],0,GD_KT,HANDLE_TSS,0);
+	extern void HANDLE_SEGNP();		//11
+	SETGATE(idt[T_SEGNP],0,GD_KT,HANDLE_SEGNP,0);
+	extern void HANDLE_STACK();		//12
+	SETGATE(idt[T_STACK],0,GD_KT,HANDLE_STACK,0);
+	extern void HANDLE_GPFLT();		//13
+	SETGATE(idt[T_GPFLT],0,GD_KT,HANDLE_GPFLT,0);
+	extern void HANDLE_PGFLT();		//14
+	SETGATE(idt[T_PGFLT],0,GD_KT,HANDLE_PGFLT,0);
+	extern void HANDLE_FPERR();		//16
+	SETGATE(idt[T_FPERR],0,GD_KT,HANDLE_FPERR,0);
+	extern void HANDLE_ALIGN();		//17
+	SETGATE(idt[T_ALIGN],0,GD_KT,HANDLE_ALIGN,0);
+	extern void HANDLE_MCHK();		//18
+	SETGATE(idt[T_MCHK],0,GD_KT,HANDLE_MCHK,0);
+	extern void HANDLE_SIMDERR();	//19
+	SETGATE(idt[T_SIMDERR],0,GD_KT,HANDLE_SIMDERR,0);
+	extern void HANDLE_SYSCALL();	//48
+	SETGATE(idt[T_SYSCALL],0,GD_KT,HANDLE_SYSCALL,3);
+	extern void HANDLE_DEFAULT();	//500
+	SETGATE(idt[T_DEFAULT],0,GD_KT,HANDLE_DEFAULT,0);
+	extern void HANDLE_IRQ_TIMER();
+	SETGATE(idt[IRQ_OFFSET + IRQ_TIMER],0,GD_KT,HANDLE_IRQ_TIMER,0);
+	extern void HANDLE_IRQ_KBD();
+	SETGATE(idt[IRQ_OFFSET + IRQ_KBD],0,GD_KT,HANDLE_IRQ_KBD,0);
+	extern void HANDLE_IRQ_SERIAL();
+	SETGATE(idt[IRQ_OFFSET + IRQ_SERIAL],0,GD_KT,HANDLE_IRQ_SERIAL,0);
+	extern void HANDLE_IRQ_SPURIOUS();
+	SETGATE(idt[IRQ_OFFSET + IRQ_SPURIOUS],0,GD_KT,HANDLE_IRQ_SPURIOUS,0);
+	extern void HANDLE_IRQ_IDE();
+	SETGATE(idt[IRQ_OFFSET + IRQ_IDE],0,GD_KT,HANDLE_IRQ_IDE,0);
+	extern void HANDLE_IRQ_ERROR();
+	SETGATE(idt[IRQ_OFFSET + IRQ_ERROR],0,GD_KT,HANDLE_IRQ_ERROR,0);
 	// LAB 3: Your code here.
     idt_pd.pd_lim = sizeof(idt)-1;
     idt_pd.pd_base = (uint64_t)idt;

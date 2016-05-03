@@ -704,7 +704,7 @@ env_run(struct Env *e)
     curenv->env_status = ENV_RUNNING;
     curenv->env_runs++;
     lcr3(e->env_cr3);
-    //unlock_kernel();
+    unlock_kernel(); // Thanks for commenting that out, barun -.-
     env_pop_tf(&e->env_tf);
 }
 

@@ -342,7 +342,14 @@ mem_init_mp(void)
     //     Permissions: kernel RW, user NONE
     //
     // LAB 4: Your code here:
-
+    int i;
+    for(i=0; i<NCPU; ++i) {
+        boot_map_region(boot_pml4e, 
+                        KSTACKTOP - i*(KSTKSIZE + KSTKGAP) - KSTKSIZE,
+                         KSTKSIZE, 
+                         PADDR(percpu_kstacks[i]), 
+                         PTE_P|PTE_W);
+    }
 }
 
 // --------------------------------------------------------------
@@ -401,7 +408,10 @@ page_init(void)
         if((page2pa(&pages[i]) >= IOPHYSMEM) && (page2pa(&pages[i])<(uint64_t)ba0)) {
             pages[i].pp_ref = 1;
             pages[i].pp_link = NULL;
-        } else {
+        } else if (page2pa(&pages[i])==MPENTRY_PADDR) {
+            pages[i].pp_ref=1;
+            pages[i].pp_link=NULL;
+        }else {
             last = &pages[i];
         }
     }
@@ -750,7 +760,13 @@ mmio_map_region(physaddr_t pa, size_t size)
     // Hint: The staff solution uses boot_map_region.
     //
     // Your code here:
-    panic("mmio_map_region not implemented");
+    
+    // Ah, simple enough function, isn't it brun?
+    // Not doing error check.
+    uintptr_t retval = base;
+    boot_map_region(boot_pml4e, base, ROUNDUP(size, PGSIZE), pa, PTE_P | PTE_W | PTE_PWT | PTE_PCD);
+    return (void*)retval;
+    // panic("mmio_map_region not implemented");
 }
 
 static uintptr_t user_mem_check_addr;

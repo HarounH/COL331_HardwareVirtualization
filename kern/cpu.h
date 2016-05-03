@@ -16,6 +16,7 @@
 enum {
 	CPU_UNUSED = 0,
 	CPU_STARTED,
+	CPU_HALTED // Was missing. I have to wonder why.
 };
 
 // Per-CPU state

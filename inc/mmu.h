@@ -30,6 +30,9 @@
 #define PPN(pa)		(((uintptr_t) (pa)) >> PTXSHIFT)
 #define VPN(la)		PPN(la)		// used to index into vpt[]
 
+#define PGNUM(la) PPN(la)
+ // Why isn't this already there?
+
 // page directory index
 #define PDX(la)		((((uintptr_t) (la)) >> PDXSHIFT) & 0x1FF)
 #define VPD(la)		(((uintptr_t) (la)) >> PDXSHIFT)		// used to index into vpd[]

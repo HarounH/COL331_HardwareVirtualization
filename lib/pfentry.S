@@ -71,14 +71,45 @@ call *%rax
     // Restore the trap-time registers.  After you do this, you
     // can no longer modify any general-purpose registers.
     // LAB 4: Your code here.
+    addq $16, %rsp // Skip fault_va and error code.
+    
+    movq 120(%rsp), %r12 // rip
+    movq 136(%rsp), %r13 // rsp
 
+    subq $8, %r13
+    movq %r12, (%r13)
+    movq %r13, 136(%r13)
     // Restore eflags from the stack.  After you do this, you can
     // no longer use arithmetic operations or anything else that
     // modifies eflags.
     // LAB 4: Your code here.
-
+    
+    movq 0(%rsp),%r15   
+    movq 8(%rsp),%r14 
+    movq 16(%rsp),%r13
+    movq 24(%rsp),%r12 
+    movq 32(%rsp),%r11
+    movq 40(%rsp),%r10
+    movq 48(%rsp),%r9
+    movq 56(%rsp),%r8
+    movq 64(%rsp),%rsi
+    movq 72(%rsp),%rdi
+    movq 80(%rsp),%rbp
+    movq 88(%rsp),%rdx
+    movq 96(%rsp),%rcx
+    movq 104(%rsp),%rbx
+    movq 112(%rsp),%rax
+    addq $120,%rsp
+        // GODDAMN LACK OF popal :<
+        // @autor: Haroun. Special credits man.
+        
     // Switch back to the adjusted trap-time stack.
     // LAB 4: Your code here.
-
+    addq $8, %rsp
+    // TODO: 64bit equivalent of popf?
+    popfq // Doh. @author: Barun :P
+    
     // Return to re-execute the instruction that faulted.
     // LAB 4: Your code here.
+    popq %rsp
+    ret

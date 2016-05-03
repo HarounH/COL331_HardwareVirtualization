@@ -29,6 +29,8 @@ static struct Trapframe *last_tf;
 /* Interrupt descriptor table.  (Must be built at run time because
  * shifted function addresses can't be represented in relocation records.)
  */
+
+// NOTE: Very interesting GDT, ain't it?
 struct Gatedesc idt[256] = { { 0 } };
 struct Pseudodesc idt_pd = {0,0};
 
@@ -71,6 +73,8 @@ static const char *trapname(int trapno)
 void
 trap_init(void)
 {
+
+	// NOTE: That is some ugly ass code, Barun
 	extern struct Segdesc gdt[];
 
 	extern void HANDLE_DIVIDE();	//0
@@ -162,13 +166,13 @@ trap_init_percpu(void)
 	// Setup a TSS so that we get the right stack
 	// when we trap to the kernel.
 	ts.ts_esp0 = KSTACKTOP;
-
+	thiscpu->cpu_ts.ts_esp0 = KSTACKTOP - thiscpu->cpu_id*(KSTKSIZE + KSTKGAP);
 	// Initialize the TSS slot of the gdt.
-	SETTSS((struct SystemSegdesc64 *)((gdt_pd>>16)+40),STS_T64A, (uint64_t) (&ts),sizeof(struct Taskstate), 0);
+	SETTSS((struct SystemSegdesc64 *)(&gdt[(GD_TSS0>>3) + 2*thiscpu->cpu_id]),STS_T64A, (uint64_t) (&thiscpu->cpu_ts),sizeof(struct Taskstate), 0);
+	
 	// Load the TSS selector (like other segment selectors, the
 	// bottom three bits are special; we leave them 0)
-	ltr(GD_TSS0);
-
+	ltr(GD_TSS0 + ((2*thiscpu->cpu_id << 3) & (~0x7)));
 	// Load the IDT
 	lidt(&idt_pd);
 }
@@ -310,6 +314,7 @@ trap(struct Trapframe *tf)
 		// Acquire the big kernel lock before doing any
 		// serious kernel work.
 		// LAB 4: Your code here.
+		lock_kernel();
 		assert(curenv);
 
 		// Garbage collect if current enviroment is a zombie
@@ -355,7 +360,9 @@ page_fault_handler(struct Trapframe *tf)
 	// Handle kernel-mode page faults.
 
 	// LAB 3: Your code here.
-
+	if( !(tf->tf_cs & 0x3) ) { // Was not executing in ring0
+		panic("What did the page_fault_handler say? Kernel trapped! kernel trapped!\n");
+	}
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.
 
@@ -389,7 +396,29 @@ page_fault_handler(struct Trapframe *tf)
 	//   (the 'tf' variable points at 'curenv->env_tf').
 
 	// LAB 4: Your code here.
+	if(curenv->env_pgfault_upcall != NULL) { // The user has defined a page fault handler for himself.
+		struct UTrapframe *ut;
 
+		// Recursive or not wala part.
+		if((tf->tf_rsp <= (UXSTACKTOP-1)) && (tf->tf_rsp >= (UXSTACKTOP-PGSIZE))) {
+			ut = (struct UTrapframe *) ( tf->tf_rsp - sizeof(struct UTrapframe) - 8); // cant subtract FOUR here, haru. Its 64 bit :(
+		} else {
+			ut = (struct UTrapframe *) ( UXSTACKTOP - sizeof(struct UTrapframe) );
+		}
+
+		// Now that we have the user trapframe, lets set it up... check if its usable before that.
+		user_mem_assert(curenv, (void*)ut, 1, PTE_W|PTE_U); // If it can do 1 , it can do the page man.
+		tf->tf_rsp = (uint64_t)ut;
+		tf->tf_rip = (uint64_t)(curenv->env_pgfault_upcall);
+		
+		ut->utf_fault_va = fault_va;
+		ut->utf_err = tf->tf_err;
+		ut->utf_regs = tf->tf_regs;
+		ut->utf_rip = tf->tf_rip;
+		ut->utf_eflags = tf->tf_eflags;
+		ut->utf_rsp = tf->tf_rsp;
+		env_run(curenv);
+	}
 	// Destroy the environment that caused the fault.
 	cprintf("[%08x] user fault va %08x ip %08x\n",
 		curenv->env_id, fault_va, tf->tf_rip);

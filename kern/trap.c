@@ -240,7 +240,36 @@ trap_dispatch(struct Trapframe *tf)
 		print_trapframe(tf);
 		return;
 	}
+	switch(tf->tf_trapno){
+		case T_PGFLT:
+				page_fault_handler(tf);
+				break;
+		case T_BRKPT:
+		case T_DEBUG:
+				monitor(tf);
+				break;
+		case T_SYSCALL:
+				tf->tf_regs.reg_rax = syscall(tf->tf_regs.reg_rax,
+										  tf->tf_regs.reg_rdx,
+										  tf->tf_regs.reg_rcx,
+										  tf->tf_regs.reg_rbx,
+										  tf->tf_regs.reg_rdi,
+										  tf->tf_regs.reg_rsi);
+				break;
+		case IRQ_OFFSET + IRQ_TIMER:
+				lapic_eoi(); // What IS this? What does it mean to acknowledge an interrupt?
+				sched_yield();
+				break;
+		default:
+				print_trapframe(tf);
+				if (tf->tf_cs == GD_KT)
+					panic("unhandled trap in kernel");
+				else {
+					env_destroy(curenv);
+					return;
+				} 
 
+	}
 	// Handle clock interrupts. Don't forget to acknowledge the
 	// interrupt using lapic_eoi() before calling the scheduler!
 	// LAB 4: Your code here.
@@ -255,13 +284,7 @@ trap_dispatch(struct Trapframe *tf)
 	// LAB 7: Your code here.
 
 	// Unexpected trap: The user process or the kernel has a bug.
-	print_trapframe(tf);
-	if (tf->tf_cs == GD_KT)
-		panic("unhandled trap in kernel");
-	else {
-		env_destroy(curenv);
-		return;
-	}
+	
 }
 
 void

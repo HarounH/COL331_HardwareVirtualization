@@ -24,7 +24,7 @@ sys_cputs(const char *s, size_t len)
     // Destroy the environment if not.
 
     // LAB 3: Your code here.
-
+    user_mem_assert(curenv, s, len, PTE_U);
     // Print the string supplied by the user.
     cprintf("%.*s", len, s);
 }
@@ -334,18 +334,35 @@ syscall(uint64_t syscallno, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, 
     // Call the function corresponding to the 'syscallno' parameter.
     // Return any appropriate return value.
     // LAB 3: Your code here.
-
-    panic("syscall not implemented");
-
     switch (syscallno) {
-        case SYS_ept_map:
-	    return sys_ept_map(a1, (void*) a2, a3, (void*) a4, a5);
-        case SYS_env_mkguest:
-            return sys_env_mkguest(a1, a2);
-
-        default:
-            return -E_NO_SYS;
+        case SYS_cputs: sys_cputs((const char*)a1,a2); return 0;
+        case SYS_cgetc: return sys_cgetc();
+        case SYS_getenvid:  return sys_getenvid();
+        case SYS_env_destroy: return sys_env_destroy(a1);
+        case SYS_page_alloc: return sys_page_alloc( (envid_t) a1,(void*) a2,(int) a3);
+        case SYS_page_map: return sys_page_map((envid_t) a1, (void*) a2, (envid_t) a3, (void*) a4, (int) a5);
+        case SYS_page_unmap: return sys_page_unmap((envid_t) a1,(void*) a2);
+        case SYS_exofork: return sys_exofork();
+        case SYS_env_set_status: return sys_env_set_status((envid_t) a1,(int) a2);
+        case SYS_env_set_pgfault_upcall: return sys_env_set_pgfault_upcall((envid_t) a1, (void*) a2);
+        case SYS_yield: sys_yield(); return 0;
+        case SYS_ipc_try_send: return sys_ipc_try_send((envid_t) a1, (uint32_t) a2, (void*) a3, (unsigned) a4);
+        case SYS_ipc_recv: return sys_ipc_recv((void*) a1);
+        case SYS_ept_map: return sys_ept_map(a1, (void*) a2, a3, (void*) a4, a5);
+        case SYS_env_mkguest: return sys_env_mkguest(a1, a2);
+        default: 
+            return -E_INVAL;
     }
+    
+    // switch (syscallno) {
+    //     case SYS_ept_map:
+	   //  return sys_ept_map(a1, (void*) a2, a3, (void*) a4, a5);
+    //     case SYS_env_mkguest:
+    //         return sys_env_mkguest(a1, a2);
+
+    //     default:
+    //         return -E_NO_SYS;
+    // }
 }
 
 #ifdef TEST_EPT_MAP

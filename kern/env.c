@@ -209,7 +209,7 @@ env_setup_vm(struct Env *e)
         e->env_pml4e[i] = 0;
     }
     for(i = PML4(UTOP); i < NPMLENTRIES; i++){
-        e->env_pml4e[i] = boot_pml4e[i] | (PTE_P | PTE_W | ~PTE_U);
+        e->env_pml4e[i] = boot_pml4e[i] | (PTE_P & ~(PTE_W | PTE_U));
     }
     // UVPT maps the env's own page table read-only.
     // Permissions: kernel R, user R
@@ -506,16 +506,17 @@ load_icode(struct Env *e, uint8_t *binary)
             // cprintf("###brk1\n");
             region_alloc(e,(void*)ph->p_va,ph->p_memsz);
             // cprintf("###brk2\n");
-            memmove((void*)ph->p_va,binary + ph->p_offset,ph->p_filesz);
+            memcpy((void*)ph->p_va,binary + ph->p_offset,ph->p_filesz);
             // cprintf("###brk3\n");
             memset((void*)ph->p_va + ph->p_filesz,0,ph->p_memsz - ph->p_filesz);
             // cprintf("###brk4\n");
         }
     }
+    lcr3(PADDR(boot_pml4e));
     e->env_tf.tf_rip = code->e_entry;
     // Now map one page for the program's initial stack
     // at virtual address USTACKTOP - PGSIZE.
-    region_alloc(e,(void*)USTACKTOP-PGSIZE,PGSIZE);
+    region_alloc(e,(void*)(USTACKTOP-PGSIZE),PGSIZE);
     // LAB 3: Your code here.
 
     // LAB 3: Your code here.
@@ -533,24 +534,24 @@ load_icode(struct Env *e, uint8_t *binary)
 env_create(uint8_t *binary, enum EnvType type)
 {
     // LAB 3: Your code here.
-    // cprintf("##brk1\n");
+    cprintf("##brk1\n");
     struct Env* new_env;
     int error_code = env_alloc(&new_env,0);
     if(error_code<0) {
         panic("env_alloc: %e\n", error_code);
     }
-    // cprintf("##brk2\n");
+    cprintf("##brk2\n");
     load_icode(new_env,binary);
-    // cprintf("##brk3\n");
+    cprintf("##brk3\n");
 
     if(type == ENV_TYPE_FS) {
         new_env->env_tf.tf_eflags |= FL_IOPL_MASK;
     } else {
         new_env->env_tf.tf_eflags &= ~FL_IOPL_MASK;
     } // Such an ugly fs man.
-    // cprintf("##brk4\n");
+    cprintf("##brk4\n");
     new_env->env_type = type;
-    // cprintf("##brk5\n");
+    cprintf("##brk5\n");
     // If this is the file server (type == ENV_TYPE_FS) give it I/O privileges.
     // LAB 5: Your code here.... done above.
 }

@@ -165,15 +165,17 @@ trap_init_percpu(void)
 
 	// Setup a TSS so that we get the right stack
 	// when we trap to the kernel.
+	cprintf("[trap_init_percpu]: cpuid=%d\n", thiscpu->cpu_id);
 	thiscpu->cpu_ts.ts_esp0 = KSTACKTOP - (thiscpu->cpu_id)*(KSTKSIZE + KSTKGAP);
 	// Initialize the TSS slot of the gdt.
 	SETTSS((struct SystemSegdesc64 *)(&gdt[(GD_TSS0>>3) + 2*(thiscpu->cpu_id)]),STS_T64A, (uint64_t) (&thiscpu->cpu_ts),sizeof(struct Taskstate), 0);
 	
 	// Load the TSS selector (like other segment selectors, the
 	// bottom three bits are special; we leave them 0)
-	ltr(GD_TSS0 + ((2*thiscpu->cpu_id << 3) & (~0x7)));
+	ltr(GD_TSS0 + ((2*thiscpu->cpu_id << 3)/* & (~0x7)*/));
 	// Load the IDT
 	lidt(&idt_pd);
+
 }
 
 void
@@ -244,8 +246,10 @@ trap_dispatch(struct Trapframe *tf)
 		return;
 	} else if(tf->tf_trapno == (IRQ_OFFSET + IRQ_KBD)) {
 		kbd_intr();
+		return;
 	} else if(tf->tf_trapno == (IRQ_OFFSET + IRQ_SERIAL)) {
 		serial_intr();
+		return;
 	}
 	switch(tf->tf_trapno){
 		case T_PGFLT:
@@ -263,7 +267,7 @@ trap_dispatch(struct Trapframe *tf)
 										  tf->tf_regs.reg_rdi,
 										  tf->tf_regs.reg_rsi);
 				break;
-		case IRQ_OFFSET + IRQ_TIMER:
+		case (IRQ_OFFSET + IRQ_TIMER):
 				lapic_eoi(); // What IS this? What does it mean to acknowledge an interrupt?
 				sched_yield();
 				break;

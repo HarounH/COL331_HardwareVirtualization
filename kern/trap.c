@@ -165,10 +165,9 @@ trap_init_percpu(void)
 
 	// Setup a TSS so that we get the right stack
 	// when we trap to the kernel.
-	ts.ts_esp0 = KSTACKTOP;
-	thiscpu->cpu_ts.ts_esp0 = KSTACKTOP - thiscpu->cpu_id*(KSTKSIZE + KSTKGAP);
+	thiscpu->cpu_ts.ts_esp0 = KSTACKTOP - (thiscpu->cpu_id)*(KSTKSIZE + KSTKGAP);
 	// Initialize the TSS slot of the gdt.
-	SETTSS((struct SystemSegdesc64 *)(&gdt[(GD_TSS0>>3) + 2*thiscpu->cpu_id]),STS_T64A, (uint64_t) (&thiscpu->cpu_ts),sizeof(struct Taskstate), 0);
+	SETTSS((struct SystemSegdesc64 *)(&gdt[(GD_TSS0>>3) + 2*(thiscpu->cpu_id)]),STS_T64A, (uint64_t) (&thiscpu->cpu_ts),sizeof(struct Taskstate), 0);
 	
 	// Load the TSS selector (like other segment selectors, the
 	// bottom three bits are special; we leave them 0)
@@ -243,6 +242,10 @@ trap_dispatch(struct Trapframe *tf)
 		cprintf("Spurious interrupt on irq 7\n");
 		print_trapframe(tf);
 		return;
+	} else if(tf->tf_trapno == (IRQ_OFFSET + IRQ_KBD)) {
+		kbd_intr();
+	} else if(tf->tf_trapno == (IRQ_OFFSET + IRQ_SERIAL)) {
+		serial_intr();
 	}
 	switch(tf->tf_trapno){
 		case T_PGFLT:
@@ -361,6 +364,7 @@ page_fault_handler(struct Trapframe *tf)
 
 	// LAB 3: Your code here.
 	if( !(tf->tf_cs & 0x3) ) { // Was not executing in ring0
+		print_trapframe(tf);
 		panic("What did the page_fault_handler say? Kernel trapped! kernel trapped!\n");
 	}
 	// We've already handled kernel-mode exceptions, so if we get here,

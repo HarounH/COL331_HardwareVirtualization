@@ -141,7 +141,17 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
     // LAB 5: Your code here.
     // Remember to check whether the user has supplied us with a good
     // address!
-    panic("sys_env_set_trapframe not implemented");
+    if( (uint64_t)tf > UTOP ) return -E_INVAL; // is this what they want?
+
+    struct Env *targetenv;
+    int r = envid2env(envid, &targetenv, 1); 
+    if (r<0) return r;
+    targetenv->env_tf = *tf;
+    targetenv->env_tf.tf_cs |= 3;
+    targetenv->env_tf.tf_eflags |= FL_IF;
+
+
+    // panic("sys_env_set_trapframe not implemented");
     return 0;
 }
 
@@ -202,8 +212,8 @@ sys_page_alloc(envid_t envid, void *va, int perm)
         return -E_INVAL; // Error #3
     }
     if( perm& ~PTE_SYSCALL
-        || (~(perm & PTE_U))
-        || (~(perm & PTE_P))) {
+        || (!(perm & PTE_U))
+        || (!(perm & PTE_P))) {
         return -E_INVAL; // Error #4 
     }
 
@@ -262,8 +272,8 @@ sys_page_map(envid_t srcenvid, void *srcva,
         return -E_NO_MEM;
     }
     if( perm& ~PTE_SYSCALL
-        || (~(perm & PTE_U))
-        || (~(perm & PTE_P))
+        || (!(perm & PTE_U))
+        || (!(perm & PTE_P))
         || ((perm&PTE_W) && (!(*pte&PTE_W)))
         ) {
         return -E_INVAL; // Error #4 

@@ -65,7 +65,6 @@ i386_init(void)
 
 	// Lab 2 memory management initialization functions
 	x64_vm_init();
-
 	// Lab 3 user environment initialization functions
 	env_init();
 	trap_init();
@@ -78,11 +77,9 @@ i386_init(void)
 
 	// Lab 4 multitasking initialization functions
 	pic_init();
-
 	// Lab 6 hardware initialization functions
 	time_init();
 	pci_init();
-
 	// Acquire the big kernel lock before waking up APs
 	// Your code here:
 	lock_kernel();
@@ -90,15 +87,16 @@ i386_init(void)
 	// Starting non-boot CPUs
 	boot_aps();
 #endif
-
+	// cprintf("#brk6\n");
 	// Should always have idle processes at first.
 	int i;
 	for (i = 0; i < NCPU; i++)
 		ENV_CREATE(user_idle, ENV_TYPE_IDLE);
 
+	// cprintf("#brk7\n");
 	// Start fs.
 	ENV_CREATE(fs_fs, ENV_TYPE_FS);
-
+	// cprintf("#brk8\n");
 #if defined(TEST)
 	// Don't touch -- used by grading script!
 	ENV_CREATE(TEST, ENV_TYPE_USER);
@@ -110,11 +108,13 @@ i386_init(void)
 	ENV_CREATE(user_icode, ENV_TYPE_USER);
 #endif // No environments until lab3
 
+	// cprintf("#brk9\n");
 	// Should not be necessary - drains keyboard because interrupt has given up.
 	kbd_intr();
-
+	// cprintf("#brk10\n");
 	// Schedule and run the first user environment!
 	sched_yield();
+	// cprintf("#brk11\n");
 }
 
 // While boot_aps is booting a given CPU, it communicates the per-core

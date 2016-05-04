@@ -652,7 +652,7 @@ page_insert(pml4e_t *pml4e, struct Page *pp, void *va, int perm)
         return -E_NO_MEM;
     }
     // ASSERT: We have pte.
-    if(*pte != 0) {
+    if(*pte & PTE_P) {
         // Something is mapped here.
         page_remove(pml4e, va);
         tlb_invalidate(pml4e, va);

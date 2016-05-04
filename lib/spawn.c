@@ -301,6 +301,25 @@ map_segment(envid_t child, uintptr_t va, size_t memsz,
 copy_shared_pages(envid_t child)
 {
     // LAB 7: Your code here.
+    uint64_t vaddr;
+    int r;
+    for(vaddr=0; vaddr<UTOP; vaddr += PGSIZE) {
+        
+        // Copying from lib/fork.c bruh.
+        if( // Gotta use the virtual types apparently.
+            (vpml4e[VPML4E(vaddr)] & PTE_P) // Mota mota level is present.
+            && ((vpde[VPDPE(vaddr)] & PTE_U) && (vpde[VPDPE(vaddr)] & PTE_P)) // Slighlt less mota level is also present.
+            && ((vpd[VPD(vaddr)] & PTE_U) && (vpd[VPD(vaddr)] & PTE_P))
+            &&  ((vpt[VPN(vaddr)] & PTE_U) && (vpt[VPN(vaddr)] & PTE_P))
+            )
+            if(vpt[VPN(vaddr)]&PTE_SHARE) {
+                r = sys_page_map(0, (void*)vaddr, child, (void*)vaddr, vpt[VPN(vaddr)] & PTE_SYSCALL);
+                if(r<0) {
+                    cprintf("WARN: Your environments are now throughly done for man.\n");
+                    return -1;
+                }
+            }
+    }
     return 0;
 }
 

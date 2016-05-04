@@ -209,7 +209,7 @@ env_setup_vm(struct Env *e)
         e->env_pml4e[i] = 0;
     }
     for(i = PML4(UTOP); i < NPMLENTRIES; i++){
-        e->env_pml4e[i] = boot_pml4e[i];
+        e->env_pml4e[i] = boot_pml4e[i] | (PTE_P | PTE_W | ~PTE_U);
     }
     // UVPT maps the env's own page table read-only.
     // Permissions: kernel R, user R
@@ -389,7 +389,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 
     // Enable interrupts while in user mode.
     // LAB 4: Your code here.
-
+    e->env_tf.tf_eflags |= FL_IF;
     // Clear the page fault handler until user installs one.
     e->env_pgfault_upcall = 0;
 
@@ -503,9 +503,13 @@ load_icode(struct Env *e, uint8_t *binary)
             if(ph->p_filesz > ph->p_memsz){
                 panic("ERROR: filesize > memsize in load_icode...\n");
             }
+            // cprintf("###brk1\n");
             region_alloc(e,(void*)ph->p_va,ph->p_memsz);
+            // cprintf("###brk2\n");
             memmove((void*)ph->p_va,binary + ph->p_offset,ph->p_filesz);
+            // cprintf("###brk3\n");
             memset((void*)ph->p_va + ph->p_filesz,0,ph->p_memsz - ph->p_filesz);
+            // cprintf("###brk4\n");
         }
     }
     e->env_tf.tf_rip = code->e_entry;
@@ -529,19 +533,26 @@ load_icode(struct Env *e, uint8_t *binary)
 env_create(uint8_t *binary, enum EnvType type)
 {
     // LAB 3: Your code here.
+    // cprintf("##brk1\n");
     struct Env* new_env;
     int error_code = env_alloc(&new_env,0);
-    if(error_code == -E_NO_FREE_ENV){
-     panic("all NENVS environments are allocated in env_create...\n");
+    if(error_code<0) {
+        panic("env_alloc: %e\n", error_code);
     }
-    if(error_code == -E_NO_MEM){ 
-        panic("memory exhaustion in env_create...\n");
-    }
+    // cprintf("##brk2\n");
     load_icode(new_env,binary);
+    // cprintf("##brk3\n");
+
+    if(type == ENV_TYPE_FS) {
+        new_env->env_tf.tf_eflags |= FL_IOPL_MASK;
+    } else {
+        new_env->env_tf.tf_eflags &= ~FL_IOPL_MASK;
+    } // Such an ugly fs man.
+    // cprintf("##brk4\n");
     new_env->env_type = type;
-    
+    // cprintf("##brk5\n");
     // If this is the file server (type == ENV_TYPE_FS) give it I/O privileges.
-    // LAB 5: Your code here.
+    // LAB 5: Your code here.... done above.
 }
 
 //

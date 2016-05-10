@@ -360,6 +360,7 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
         pte_t *pte; // mapping to send.
         struct Page *pg;
         if( (uint64_t)srcva % PGSIZE != 0 ) { // srcva must be page aligned
+            
             return -E_INVAL;
         }
         if (!(perm & PTE_U) || !(perm & PTE_P) || (perm & ~PTE_SYSCALL)) { // Checking validity of perm

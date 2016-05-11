@@ -217,7 +217,7 @@ sys_page_alloc(envid_t envid, void *va, int perm)
         return -E_INVAL; // Error #4 
     }
 
-    r = page_insert(target->env_pml4e, pp, va, perm);
+    r = page_insert(target->env_pml4e, pp, va, perm | PTE_P);
     if(r<0) {
         page_free(pp);
         return -E_NO_MEM; // Why would this happen?
@@ -352,6 +352,7 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
     struct Env *target_env;
     int retval;
     if( (retval = envid2env(envid, &target_env, 0)) < 0) { // Don't check permissions.
+        cprintf("kern/syscall.c:sys_ipc_try_send %e ... %d access %d", retval, curenv->env_id, envid);
         return retval; // Error.
     } else if( target_env->env_ipc_recving != 1 ) {
         return -E_IPC_NOT_RECV;
@@ -360,29 +361,33 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
         pte_t *pte; // mapping to send.
         struct Page *pg;
         if( (uint64_t)srcva % PGSIZE != 0 ) { // srcva must be page aligned
-            
+            cprintf("sys_ipc_try_send: alignment error\n");
             return -E_INVAL;
         }
         if (!(perm & PTE_U) || !(perm & PTE_P) || (perm & ~PTE_SYSCALL)) { // Checking validity of perm
+            cprintf("sys_ipc_try_send: permissions error1\n");
             return -E_INVAL;
         }
         pg = page_lookup(curenv->env_pml4e, srcva, &pte);
         if( !pg ) { // Not mapped
+            cprintf("sys_ipc_try_send: !pg error\n");
             return -E_INVAL;
         }
-        if( (perm & *pte) != perm ) { // pte is missing some permissions.
-            return -E_INVAL;
-        }
+        // if( (perm & *pte) != perm ) { // pte is missing some permissions.
+        //     cprintf("sys_ipc_try_send: permissions error2\n");
+        //     return -E_INVAL;
+        // }
         if( (perm & PTE_W) && !(*pte & PTE_W)) {
+            cprintf("sys_ipc_try_send: permissions error3\n");
             return -E_INVAL;
         }
 
         // Time to create a mapping in target_env.
         if((uint64_t)target_env->env_ipc_dstva < UTOP) { // Does it want to get mapped?
-            if((retval = page_insert(target_env->env_pml4e, pg, target_env->env_ipc_dstva, perm)) < 0) {
+            if((retval = page_insert(target_env->env_pml4e, pg, target_env->env_ipc_dstva, perm|PTE_P)) < 0) {
                 return retval;
             }
-            target_env->env_ipc_perm = perm;
+            target_env->env_ipc_perm = perm|PTE_P; // Setting perm here. This is different, no?
         }
     }
     target_env->env_ipc_recving = 0;

@@ -469,8 +469,9 @@ page_free(struct Page *pp)
     if(pp!=NULL) {
         if(pp->pp_ref !=0 || pp->pp_link != NULL) {
             // silently succeed.
-            cprintf("[kern] page_free got weird pp\n");
-            return;
+            // cprintf("[kern] page_free got weird pp\n");
+            // return;
+            panic("Panic in page free");
         }
         if(page_free_list!=NULL) { // Stop screwing me with your "funky" behaviour hrun
             pp->pp_link = page_free_list;
@@ -760,12 +761,16 @@ mmio_map_region(physaddr_t pa, size_t size)
     // Hint: The staff solution uses boot_map_region.
     //
     // Your code here:
-    
-    // Ah, simple enough function, isn't it brun?
-    // Not doing error check.
-    uintptr_t retval = base;
-    boot_map_region(boot_pml4e, base, ROUNDUP(size, PGSIZE), pa, PTE_P | PTE_W | PTE_PWT | PTE_PCD);
-    return (void*)retval;
+    size_t newsize = ROUNDUP(size, PGSIZE);
+    if(base+newsize >= MMIOLIM) {
+        panic("mmio_map_region out of range");
+    }
+    boot_map_region(boot_pml4e, base, newsize, pa, PTE_PCD|PTE_PWT|PTE_W|PTE_P);
+    //panic("mmio_map_region not implemented");
+    uintptr_t len = base;
+    base = base+newsize;
+    return (void*)len;
+
     // panic("mmio_map_region not implemented");
 }
 

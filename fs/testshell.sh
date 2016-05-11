@@ -1,6 +1,5 @@
 echo hello world | cat
-cat lorem >out
-cat out
+cat lorem
 cat lorem |num
 cat lorem |num |num |num |num |num
 lsfd -1

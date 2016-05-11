@@ -404,6 +404,7 @@ page_fault_handler(struct Trapframe *tf)
 	//   (the 'tf' variable points at 'curenv->env_tf').
 
 	// LAB 4: Your code here.
+	// cprintf("curnev pgfault upcall= %d\n", curenv->env_pgfault_upcall);
 	if(curenv->env_pgfault_upcall != NULL) { // The user has defined a page fault handler for himself.
 		struct UTrapframe *ut;
 
@@ -416,15 +417,16 @@ page_fault_handler(struct Trapframe *tf)
 
 		// Now that we have the user trapframe, lets set it up... check if its usable before that.
 		user_mem_assert(curenv, (void*)ut, 1, PTE_W|PTE_U); // If it can do 1 , it can do the page man.
-		tf->tf_rsp = (uint64_t)ut;
-		tf->tf_rip = (uint64_t)(curenv->env_pgfault_upcall);
-		
 		ut->utf_fault_va = fault_va;
 		ut->utf_err = tf->tf_err;
 		ut->utf_regs = tf->tf_regs;
 		ut->utf_rip = tf->tf_rip;
 		ut->utf_eflags = tf->tf_eflags;
 		ut->utf_rsp = tf->tf_rsp;
+
+		tf->tf_rsp = (uint64_t)ut;
+		tf->tf_rip = (uint64_t)(curenv->env_pgfault_upcall);
+		
 		env_run(curenv);
 	}
 	// Destroy the environment that caused the fault.

@@ -30,8 +30,11 @@ set_pgfault_handler(void (*handler)(struct UTrapframe *utf))
         // First time through!
         // LAB 4: Your code here.
         r = sys_page_alloc(0, (void*) (UXSTACKTOP - PGSIZE), PTE_P|PTE_U|PTE_W);
-        if(r<0)
+        if(r<0) {
         	cprintf("WARN: set_pgfault_handler() got an error. Silently Succeeding.\n");
+        }
+        sys_env_set_pgfault_upcall(0, _pgfault_upcall);
+        
         // panic("set_pgfault_handler not implemented");
     }
 

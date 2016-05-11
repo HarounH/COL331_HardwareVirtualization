@@ -30,6 +30,7 @@ ipc_recv(envid_t *from_env_store, void *pg, int *perm_store)
     if(!pg) {
         pg = (void*)(UTOP + 100); // Since this is ! <UTOP, the syscall will not save data.
     }
+    
     int retval = sys_ipc_recv(pg);
     if(retval) {
         // Set stuff
@@ -42,10 +43,10 @@ ipc_recv(envid_t *from_env_store, void *pg, int *perm_store)
         return retval;
     } else {
         // Set stuff.
-        if(from_env_store) {
+        if(from_env_store != 0) {
             *from_env_store = thisenv->env_ipc_from;
         }
-        if(perm_store) {
+        if(perm_store != 0) {
             *perm_store = thisenv->env_ipc_perm;
         }
     }
@@ -76,7 +77,7 @@ ipc_send(envid_t to_env, uint32_t val, void *pg, int perm)
         if(retval == 0) {
             break;
         } else if ( retval != -E_IPC_NOT_RECV ) {
-            panic("lib/ipc.c:ipc_send() ... retval != -E_IPC_NOT_RECV\n");
+            panic("lib/ipc.c:ipc_send() ... retval != -E_IPC_NOT_RECV... retval=%e\n",retval);
         }
         sys_yield(); // Wait
     }

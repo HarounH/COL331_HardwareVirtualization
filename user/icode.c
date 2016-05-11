@@ -21,7 +21,7 @@ umain(int argc, char **argv)
         panic("icode: open /motd: %e", fd);
 
     cprintf("icode: read /motd\n");
-    while ((n = read(fd, buf, sizeof buf-1)) > 0) {
+    while ((n = read(fd, buf, sizeof(buf)-1)) > 0) {
         cprintf("Writing MOTD\n");
         sys_cputs(buf, n);
     }
